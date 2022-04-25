@@ -47,7 +47,7 @@ impl AccountHandle {
             }),
         };
 
-        self.send(outputs, options).await
+        self.send(outputs, options, false).await
     }
 
     fn nft_to_basic_output(nft_output: &NftOutput) -> crate::Result<Output> {

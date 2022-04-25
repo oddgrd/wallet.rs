@@ -190,7 +190,7 @@ impl AccountHandle {
                     .finish()?,
                 ),
             ];
-            self.send(outputs, options)
+            self.send(outputs, options, false)
                 .await
                 .map(|transfer_result| MintTokenTransferResult {
                     token_id,
@@ -243,7 +243,7 @@ impl AccountHandle {
                         )))
                         .finish()?,
                 )];
-                let transfer_result = self.send(outputs, options).await?;
+                let transfer_result = self.send(outputs, options, false).await?;
                 log::debug!("[TRANSFER] sent alias output");
                 if let Some(message_id) = transfer_result.message_id {
                     self.client.retry_until_included(&message_id, None, None).await?;

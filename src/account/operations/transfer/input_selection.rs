@@ -22,6 +22,7 @@ impl AccountHandle {
         custom_inputs: Option<Vec<InputSigningData>>,
         remainder_address: Option<Address>,
         byte_cost_config: &ByteCostConfig,
+        allow_burning: bool,
     ) -> crate::Result<SelectedTransactionData> {
         log::debug!("[TRANSFER] select_inputs");
         // lock so the same inputs can't be selected in multiple transfers
@@ -45,8 +46,15 @@ impl AccountHandle {
                 }
             }
 
-            let selected_transaction_data =
-                try_select_inputs(custom_inputs, outputs, true, remainder_address, byte_cost_config).await?;
+            let selected_transaction_data = try_select_inputs(
+                custom_inputs,
+                outputs,
+                true,
+                remainder_address,
+                byte_cost_config,
+                allow_burning,
+            )
+            .await?;
 
             // lock outputs so they don't get used by another transaction
             for output in &selected_transaction_data.inputs {
@@ -112,19 +120,27 @@ impl AccountHandle {
                 }
             }
         }
-        let selected_transaction_data =
-            match try_select_inputs(available_outputs, outputs, false, remainder_address, byte_cost_config).await {
-                Ok(r) => r,
-                Err(iota_client::Error::ConsolidationRequired(output_count)) => {
-                    #[cfg(feature = "events")]
-                    self.event_emitter
-                        .lock()
-                        .await
-                        .emit(account.index, WalletEvent::ConsolidationRequired);
-                    return Err(crate::Error::ConsolidationRequired(output_count, INPUT_COUNT_MAX));
-                }
-                Err(e) => return Err(e.into()),
-            };
+        let selected_transaction_data = match try_select_inputs(
+            available_outputs,
+            outputs,
+            false,
+            remainder_address,
+            byte_cost_config,
+            allow_burning,
+        )
+        .await
+        {
+            Ok(r) => r,
+            Err(iota_client::Error::ConsolidationRequired(output_count)) => {
+                #[cfg(feature = "events")]
+                self.event_emitter
+                    .lock()
+                    .await
+                    .emit(account.index, WalletEvent::ConsolidationRequired);
+                return Err(crate::Error::ConsolidationRequired(output_count, INPUT_COUNT_MAX));
+            }
+            Err(e) => return Err(e.into()),
+        };
 
         // lock outputs so they don't get used by another transaction
         for output in &selected_transaction_data.inputs {

@@ -108,6 +108,6 @@ impl AccountHandle {
             }
             outputs.push(Output::Nft(nft_builder.finish()?));
         }
-        self.send(outputs, options).await
+        self.send(outputs, options, false).await
     }
 }

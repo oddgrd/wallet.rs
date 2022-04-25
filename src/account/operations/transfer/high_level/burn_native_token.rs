@@ -74,7 +74,7 @@ impl AccountHandle {
                     .finish()?,
                 ),
             ];
-            self.send(outputs, options).await
+            self.send(outputs, options, false).await
         } else {
             unreachable!("We checked if it's an alias output before")
         }
@@ -154,14 +154,7 @@ impl AccountHandle {
             }),
         };
 
-        println!(
-            "inputs -> {}\noutputs -> {}",
-            serde_json::to_string(&options.as_ref().unwrap().custom_inputs).unwrap(),
-            serde_json::to_string(&outputs).unwrap()
-        );
-
-        // TODO: Avoid or work on `try_select_inputs` to make it burn native tokens rather than have them put in remainder
-        self.send(outputs, options).await
+        self.send(outputs, options, true).await
     }
 
     fn output_with_native_tokens<'a>(

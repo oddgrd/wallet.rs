@@ -19,9 +19,9 @@ use iota_client::{
         payload::transaction::{TransactionId, TransactionPayload},
         MessageId,
     },
+    packable::bounded::TryIntoBoundedU16Error,
     signing::types::InputSigningData,
 };
-use packable::bounded::TryIntoBoundedU16Error;
 use serde::Serialize;
 
 pub use self::options::{RemainderValueStrategy, TransferOptions};
@@ -65,7 +65,12 @@ impl AccountHandle {
     ///     println!("Message sent: {}", message_id);
     /// }
     /// ```
-    pub async fn send(&self, outputs: Vec<Output>, options: Option<TransferOptions>) -> crate::Result<TransferResult> {
+    pub async fn send(
+        &self,
+        outputs: Vec<Output>,
+        options: Option<TransferOptions>,
+        allow_burning: bool,
+    ) -> crate::Result<TransferResult> {
         // here to check before syncing, how to prevent duplicated verification (also in send_transfer())?
         let byte_cost_config = self.client.get_byte_cost_config().await?;
 
@@ -89,7 +94,8 @@ impl AccountHandle {
             }))
             .await?;
         }
-        self.send_transfer(outputs, options, &byte_cost_config).await
+        self.send_transfer(outputs, options, &byte_cost_config, allow_burning)
+            .await
     }
 
     // Separated function from send, so syncing isn't called recursiv with the consolidation function, which sends
@@ -99,6 +105,7 @@ impl AccountHandle {
         outputs: Vec<Output>,
         options: Option<TransferOptions>,
         byte_cost_config: &ByteCostConfig,
+        allow_burning: bool,
     ) -> crate::Result<TransferResult> {
         log::debug!("[TRANSFER] send");
         // Check if the outputs have enough amount to cover the storage deposit
@@ -187,7 +194,13 @@ impl AccountHandle {
         };
 
         let selected_transaction_data = self
-            .select_inputs(outputs, custom_inputs, remainder_address, byte_cost_config)
+            .select_inputs(
+                outputs,
+                custom_inputs,
+                remainder_address,
+                byte_cost_config,
+                allow_burning,
+            )
             .await?;
         // can we unlock the outputs in a better way if the transaction creation fails?
         let prepared_transaction_data = match self
