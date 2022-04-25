@@ -13,6 +13,8 @@ use iota_client::{
             AliasId, AliasOutputBuilder, BasicOutputBuilder, FoundryId, FoundryOutputBuilder, NativeToken, Output,
             SimpleTokenScheme, TokenId, TokenScheme, TokenTag,
         },
+        payload::transaction::TransactionId,
+        MessageId,
     },
 };
 use primitive_types::U256;
@@ -21,9 +23,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     account::{
         handle::AccountHandle,
-        operations::transfer::{
-            high_level::minimum_storage_deposit::{minimum_storage_deposit_alias, minimum_storage_deposit_foundry},
-            TransferResult,
+        operations::transfer::high_level::minimum_storage_deposit::{
+            minimum_storage_deposit_alias, minimum_storage_deposit_foundry,
         },
         TransferOptions,
     },
@@ -46,6 +47,14 @@ pub struct NativeTokenOptions {
     /// Maximum supply
     #[serde(rename = "maximumSupply")]
     pub maximum_supply: U256,
+}
+
+/// The result of a minting native token transfer, message_id is an option because submitting the transaction could fail
+#[derive(Debug, Serialize)]
+pub struct MintTokenTransferResult {
+    pub token_id: TokenId,
+    pub transaction_id: TransactionId,
+    pub message_id: Option<MessageId>,
 }
 
 impl AccountHandle {
@@ -74,7 +83,7 @@ impl AccountHandle {
         &self,
         native_token_options: NativeTokenOptions,
         options: Option<TransferOptions>,
-    ) -> crate::Result<TransferResult> {
+    ) -> crate::Result<MintTokenTransferResult> {
         log::debug!("[TRANSFER] mint_native_token");
         let byte_cost_config = self.client.get_byte_cost_config().await?;
 
@@ -181,7 +190,13 @@ impl AccountHandle {
                     .finish()?,
                 ),
             ];
-            self.send(outputs, options).await
+            self.send(outputs, options)
+                .await
+                .map(|transfer_result| MintTokenTransferResult {
+                    token_id,
+                    transaction_id: transfer_result.transaction_id,
+                    message_id: transfer_result.message_id,
+                })
         } else {
             unreachable!("We checked if it's an alias output before")
         }
@@ -215,6 +230,7 @@ impl AccountHandle {
             None => {
                 drop(account);
                 let amount = minimum_storage_deposit_alias(&byte_cost_config, &controller_address)?;
+                println!("build alias output");
                 let outputs = vec![Output::Alias(
                     AliasOutputBuilder::new_with_amount(amount, AliasId::from([0; 20]))?
                         .with_state_index(0)
